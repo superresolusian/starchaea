@@ -1,9 +1,30 @@
-// file path stuff
+// make dialog
+makeDialog();
+
+// grab values from dialog
+is_drift_corrected = Dialog.getCheckbox();
+is_two_colour = Dialog.getCheckbox();
+tracking_channel = Dialog.getNumber();
+
+// get directory
 dir = getDirectory("Choose base directory containing image and stardist folders");
 
-images_dir = dir+"registered data";
+if(is_drift_corrected){
+	images_dir = dir+"registered data";
+}
+else{
+	images_dir = dir+"raw data";
+}
+
 rois_dir = dir+"stardist results";
+
+if(is_two_colour){
+	rois_dir = rois_dir+"/channel "+tracking_channel;
+}
+
 tracks_dir = dir+"tracking results";
+
+IJ.log(rois_dir)
 
 im_list = getFileList(images_dir);
 rois_list = getFileList(rois_dir);
@@ -13,7 +34,11 @@ File.makeDirectory(tracks_dir); // prepare target folder for saving trackmate re
 // variables to help loops and string manipulation
 n_images = lengthOf(im_list);
 
-prefix = "DRIFTCORRECTED_";
+prefix = "";
+if(is_drift_corrected){
+	prefix = "DRIFTCORRECTED_";
+}
+
 prefix_length = lengthOf(prefix);
 
 // set correct measurements for trackmate script
@@ -51,7 +76,7 @@ for(i=0; i<n_images; i++){
 	roiManager("Select", roi_index_array);
 	roiManager("Measure");
 
-	print("gonna save to "+tracks_dir);
+	print("Saving Trackmate output to "+tracks_dir);
 	//tracks_dir_ = replace(tracks_dir, " ", "\\^");
 	run("my tracking", "save_dir=["+tracks_dir+"]");
 
@@ -60,4 +85,14 @@ for(i=0; i<n_images; i++){
 	run("Close");
 	run("Close All");
 	roiManager("reset");
+}
+
+function makeDialog(){
+	Dialog.create("Run Trackmate on Stardist detections");
+
+	Dialog.addCheckbox("Drift-corrected data?", 0);
+	Dialog.addCheckbox("Two-colour data?", 0);
+	Dialog.addNumber("Channel for running tracking (only relevant for two-colour data", 1);
+
+	Dialog.show();
 }
