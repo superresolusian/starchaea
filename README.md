@@ -2,7 +2,7 @@
 notebooks for stardist x trackmate x archaea project
 
 ## Data and models
-Find 'em here: [https://www.dropbox.com/sh/jbczc4devj1cjby/AAD-LELLm6_v74o9B7CLXJUUa?dl=0]
+Find 'em here: https://www.dropbox.com/sh/jbczc4devj1cjby/AAD-LELLm6_v74o9B7CLXJUUa?dl=0
 
 ## Order to run notebooks/code things in. General notes and musings.
 * 0. Model training - haven't included this. Don't know if it's worth making a separate notebook in this repo or just point people to Stardist training example? Will gather together some examples of annotated data for both channels either way.
@@ -18,5 +18,4 @@ Find 'em here: [https://www.dropbox.com/sh/jbczc4devj1cjby/AAD-LELLm6_v74o9B7CLX
 * 5. `Measure_polygons.ipynb` - again, I've tested this on 2 colour data but not single colour.
 
 ## Soundtrack
-[https://www.youtube.com/watch?v=jyO-MyJ4R1g] - I LOVE this song and also it's by Starcadian which is basically starchaea :)
-
+https://www.youtube.com/watch?v=jyO-MyJ4R1g - I LOVE this song and also it's by Starcadian which is basically starchaea :)
