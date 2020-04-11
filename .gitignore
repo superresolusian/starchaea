@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.idea
+
+.DS_Store
+.ipynb_checkpoints
+
+*.npz
+*.tif*
+*.hdf5
+*.h5
+*.zip
+*.png
+*.so
+*.tfevents.*
+config.json
