@@ -16,26 +16,31 @@
 #@ String (visibility=MESSAGE, label="<html><br/><b>Membrane StarDist Model</b></html>", value="<html><br/><hr width='100'></html>", required="false") membrane_msg
 #@ Boolean (label="Enable", value="true") stardist_membrane_enabled
 #@ File (label="Model File", required="false") stardist_membrane
-#@ Float (label="Probability Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.844602") prob_thresh_membrane
-#@ Float (label="Overlap Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.7") nms_thresh_membrane
+#@ Float (label="Probability Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.844602", persist="false") prob_thresh_membrane
+#@ Float (label="Overlap Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.7", persist="false") nms_thresh_membrane
 
 #@ String (visibility=MESSAGE, label="<html><br/><b>DNA StarDist Model</b></html>", value="<html><br/><hr width='100'></html>", required="false") dna_msg
 #@ Boolean (label="Enable", value="true") stardist_dna_enabled
 #@ File (label="Model File", required="false") stardist_dna
-#@ Float (label="Probability Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.696284") prob_thresh_dna
-#@ Float (label="Overlap Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.7") nms_thresh_dna
+#@ Float (label="Probability Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.696284", persist="false") prob_thresh_dna
+#@ Float (label="Overlap Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.7", persist="false") nms_thresh_dna
+
 
 import sys
 from math import pi
 from math import sqrt
-from random import shuffle
+# from random import shuffle
 import os
 
 from java.awt import Color
+from java.io import FileWriter
+from com.google.gson import Gson
 
-from ij import WindowManager
-from ij.measure import ResultsTable
-from ij.plugin.frame import RoiManager
+# from ij import WindowManager
+from ij.measure import ResultsTable, Measurements
+from ij.plugin import ChannelSplitter
+# from ij.plugin.frame import RoiManager
+from ij.plugin.filter import Analyzer
 
 from fiji.plugin.trackmate import Logger
 from fiji.plugin.trackmate import Model
@@ -52,23 +57,11 @@ from fiji.plugin.trackmate.providers import TrackAnalyzerProvider
 from fiji.plugin.trackmate.tracking.sparselap import SparseLAPTrackerFactory
 from fiji.plugin.trackmate.visualization.hyperstack import HyperStackDisplayer
 from fiji.plugin.trackmate.gui import TrackMateGUIController
+import fiji.plugin.trackmate.features.FeatureFilter as FeatureFilter
 from org.jfree.chart.renderer.InterpolatePaintScale import Jet
 
-import fiji.plugin.trackmate.features.FeatureFilter as FeatureFilter
-
-from de.csbdresden.stardist import StarDist2D
-from ij.plugin import ChannelSplitter
-
-from ij.plugin.filter import Analyzer
-from ij.measure import Measurements
-
 from org.scijava.ui import DialogPrompt
-
-from com.google.gson import Gson
-from java.io import FileWriter
-# from com.google.gson import GsonBuilder
-
-
+from de.csbdresden.stardist import StarDist2D
 
 
 
@@ -82,8 +75,12 @@ def spots_from_results_table( results_table, frame_interval ):
 	POSITION_T spot feature.
 	"""
 
-	# frames = results_table.getColumnAsDoubles( results_table.getColumnIndex( 'Slice' ) )
+	# hyperstack
 	frames = results_table.getColumnAsDoubles( results_table.getColumnIndex( 'Frame' ) )
+	# stack
+	if frames is None:
+		frames = results_table.getColumnAsDoubles( results_table.getColumnIndex( 'Slice' ) )
+
 	xs = results_table.getColumnAsDoubles( results_table.getColumnIndex( 'XM' ) )
 	ys = results_table.getColumnAsDoubles( results_table.getColumnIndex( 'YM' ) )
 	z = 0.
@@ -211,7 +208,6 @@ def create_trackmate( imp, results_table ):
 	return trackmate
 
 
-
 def process( trackmate ):
 	"""
 	Execute the full process BUT for the detection step.
@@ -243,7 +239,7 @@ def process( trackmate ):
 	return ok
 
 
-def display_results_in_GUI( trackmate ):
+def display_results_in_GUI( trackmate, imp ):
 	"""
 	Creates and show a TrackMate GUI to configure the display
 	of the results.
@@ -277,12 +273,8 @@ def display_results_in_GUI( trackmate ):
 	gui.setGUIStateString( 'ConfigureViews' )
 
 
-
-def color_rois_by_track( trackmate, rm ):
+def exports_rois_by_track( trackmate, rm, path ):
 	"""
-	Colors the ROIs stored in the specified ROIManager rm using a color
-	determined by the track ID they have.
-
 	We retrieve the IJ ROI that matches the TrackMate Spot because in the
 	latter we stored the index of the spot in the quality feature. This
 	is a hack of course. On top of that, it supposes that the index of the
@@ -291,105 +283,44 @@ def color_rois_by_track( trackmate, rm ):
 	likely to break things.
 	"""
 	model = trackmate.getModel()
-	track_colors = {}
-	track_indices = []
-	for i in model.getTrackModel().trackIDs( True ):
-		track_indices.append( i )
-	shuffle( track_indices )
-
-	for i, track_id in enumerate(track_indices):
-		color = Jet.getPaint( float(i) / ( len( track_indices) - 1 ) )
-		track_colors[ track_id ] = color
-
-	spots = model.getSpots()
-	for spot in spots.iterable( True ):
-		q = spot.getFeature( 'QUALITY' ) # Stored the ROI id.
-		roi_id = int( q )
-		roi = rm.getRoi( roi_id )
-
-		# Get track id.
-		track_id = model.getTrackModel().trackIDOf( spot )
-		if track_id is None or track_id not in track_indices:
-			color = Color.GRAY
-		else:
-			color = track_colors[ track_id ]
-
-		roi.setFillColor( color )
-
-
-
-def exports_rois_by_track( trackmate, rm, imp, path ):
-	"""
-	Colors the ROIs stored in the specified ROIManager rm using a color
-	determined by the track ID they have.
-
-	We retrieve the IJ ROI that matches the TrackMate Spot because in the
-	latter we stored the index of the spot in the quality feature. This
-	is a hack of course. On top of that, it supposes that the index of the
-	ROI in the ROIManager corresponds to the line in the ResultsTable it
-	generated. So any changes to the ROIManager or the ResultsTable is
-	likely to break things.
-	"""
-	model = trackmate.getModel()
-	track_colors = {}
-	track_indices = []
 	track_rois = {}
 	for i in model.getTrackModel().trackIDs( True ):
-		track_indices.append( i )
 		track_rois[i] = []
-	shuffle( track_indices )
-
-
-	for i, track_id in enumerate(track_indices):
-		color = Jet.getPaint( float(i) / ( len( track_indices) - 1 ) )
-		track_colors[ track_id ] = color
 
 	spots = model.getSpots()
 	for spot in spots.iterable( True ):
-		q = spot.getFeature( 'QUALITY' ) # Stored the ROI id.
-		roi_id = int( q )
-		roi = rm.getRoi( roi_id )
-		roi_name = rm.getName( roi_id )
-
-		# Get track id.
 		track_id = model.getTrackModel().trackIDOf( spot )
-		if track_id is None or track_id not in track_indices:
-			color = Color.GRAY
-		else:
-			color = track_colors[ track_id ]
+		if track_id is not None and track_id in track_rois:
+			q = spot.getFeature( 'QUALITY' ) # Stored the ROI id.
+			roi_name = rm.getName( int(q) )
 			track_rois[track_id].append(roi_name)
 
-		roi.setFillColor( color )
-
-
-	# imp_name = imp.getTitle()
-	# script_path = sys.argv[0]
-	# script_dir = os.path.dirname(script_path)
-	# name, ext = os.path.splitext(imp_name)
-	# #output_path = os.path.join(script_dir, name+'_tracks.csv')
-	# print('save directory is '+save_dir)
-	# output_path = os.path.join(save_dir, name+'_tracks.csv')
-	output_path = path
-
-	with open(output_path, 'w') as f:
+	with open(path, 'w') as f:
 		f.writelines([', '.join(track_rois[track_id])+'\n' for track_id in track_rois.keys()])
-
 
 
 def error(msg):
 	ui.showDialog(msg, DialogPrompt.MessageType.ERROR_MESSAGE);
 
 
-def export_rois(path):
+def export_rois(rm, is_hyperstack, path):
+	frame = (lambda roi: roi.getTPosition()) if is_hyperstack else (lambda roi: roi.getPosition())
 	rois = rm.getRoisAsArray()
 	polys = {}
 	for roi in rois:
 		fp = roi.getFloatPolygon()
-		polys[roi.getName()] = {'t': roi.getTPosition(), 'x': fp.xpoints, 'y': fp.ypoints}
+		polys[roi.getName()] = {'t': frame(roi), 'x': fp.xpoints, 'y': fp.ypoints}
 
 	writer = FileWriter(path)
 	Gson().toJson(polys, writer)
 	writer.close() # important
+
+
+def save_path(save_dir, imp_name, name):
+	out_dir = os.path.join(save_dir.getAbsolutePath(), imp_name)
+	if not os.path.exists(out_dir):
+		os.makedirs(out_dir)
+	return os.path.join(out_dir, name)
 
 
 def main():
@@ -416,7 +347,14 @@ def main():
 	if len(models) == 0:
 		return error("no stardist model enabled")
 
+	if tracking_channel not in channel_names:
+		return error("channel %s cannot be tracked, must be one of %s" % (tracking_channel, channel_names))
+
 	n_channels = imp.getNChannels()
+	n_frames = imp.getNFrames()
+	is_hyperstack = n_channels > 1
+	if n_frames < 2:
+		return error("input must be a timelapse")
 	if n_channels != len(models):
 		return error("input image has %d channels, but %d stardist model(s) enabled" % (n_channels, len(models)))
 
@@ -424,47 +362,34 @@ def main():
 
 	args = zip(channel_names, channel_imps, models, prob_threshs, nms_threshs)
 
-	assert tracking_channel in ('Membrane','DNA')
 	if tracking_channel == 'Membrane':
 		args = reversed(args) # tracking_channel must come last
 
 	params = {}
-	# params['input'] = channel_imps[0]
-	# params['modelChoice'] = "Versatile (fluorescent nuclei)"
 	params['modelChoice'] = "Model (.zip) from File"
-	# params['modelFile'] = "/Users/uwe/Dropbox/starchaea_data_models/models/stardist-2020-elastic/TF_SavedModel.zip"
-	# params['modelFile'] = models[0].getAbsolutePath()
 	params['outputType'] = "ROI Manager"
-	params['roiPosition'] = "Hyperstack"
-	# params['roiPosition'] = "Stack"
-	# params[''] = ""
+	# params['roiPosition'] = "Automatic" # doesn't work because single channels are fed to StarDist, but result may be displayed on hyperstack
+	params['roiPosition'] = "Hyperstack" if n_channels > 1 else "Stack"
 
-
-	print "\n\n"
+	print "\n===============================\n"
 	for channel_name, channel, model, prob_thresh, nms_thresh in args:
 		params['input'] = channel
 		params['modelFile'] = model.getAbsolutePath()
 		params['probThresh'] = prob_thresh
 		params['nmsThresh'] = nms_thresh
-		print "\n"
-		print channel_name, params
+		# print 'StarDist', channel_name, ':', params, '\n'
 		command.run(StarDist2D, False, params).get()
-		# save rois to disk...
-		export_rois( os.path.join(save_dir.getAbsolutePath(), '%s_%s_rois.json' % (imp_name, channel_name.lower())) )
-	# return
-
+		export_rois( rm, is_hyperstack, save_path(save_dir, imp_name, 'rois_%s.json' % channel_name.lower()) )
 
 	assert channel_name == tracking_channel
 
-	# return
-
-	# backup selected measurements
+	# backup global user-chosen measurements
 	measurements = Analyzer.getMeasurements()
 	# set needed measurements
 	Analyzer.setMeasurements(Measurements.AREA + Measurements.CENTER_OF_MASS + Measurements.STACK_POSITION)
 	# create measurements table
 	rm.runCommand(imp, "Measure");
-	# restore global selected measurements
+	# restore global user-chosen measurements
 	Analyzer.setMeasurements(measurements)
 
 	# close/hide measurements table
@@ -472,14 +397,12 @@ def main():
 	results_window.close(False)
 	# results_window.setVisible(False)
 
-
 	# Remove overlay if any.
 	imp.setOverlay( None )
 
 	# Get results table.
 	results_table = ResultsTable.getResultsTable()
 	# print results_table
-
 
 	# Create TrackMate instance.
 	trackmate = create_trackmate( imp, results_table )
@@ -496,15 +419,12 @@ def main():
 	# Display results.
 	#-----------------------
 
+	# TODO: close trackmate gui?
+
 	# Create the GUI and let it control display of results.
-	display_results_in_GUI( trackmate )
+	display_results_in_GUI( trackmate, imp )
 
-	tracks_path = os.path.join(save_dir.getAbsolutePath(), '%s_%s_tracks.csv' % (imp_name, tracking_channel.lower()))
+	exports_rois_by_track( trackmate, rm, save_path(save_dir, imp_name, 'tracks_%s.csv' % tracking_channel.lower()) )
 
-	# Color ROI by track ID!
-	# rm = RoiManager.getInstance()
-	# color_rois_by_track( trackmate, rm )
-	#save_dir_ = save_dir.replace('^', ' ')
-	exports_rois_by_track( trackmate, rm, imp, tracks_path )
 
 main()
