@@ -34,7 +34,7 @@
 import sys
 from math import pi
 from math import sqrt
-# from random import shuffle
+from random import shuffle
 import os
 
 from java.awt import Color
@@ -264,12 +264,6 @@ def display_results_in_GUI( trackmate, imp ):
 	gui.getGuimodel().addView( displayer )
 	displaySettings = gui.getGuimodel().getDisplaySettings()
 
-	# # new
-	# displaySettings.put( "Color", Color(128,128,128) )
-	# # displaySettings.put( "TrackDisplayDepth", 42 )
-	# displaySettings.put( "SpotsVisible", True )
-	# print(displaySettings)
-
 	for key in displaySettings.keySet():
 		displayer.setDisplaySettings( key, displaySettings.get( key ) )
 	displayer.render()
@@ -278,8 +272,11 @@ def display_results_in_GUI( trackmate, imp ):
 	gui.setGUIStateString( 'ConfigureViews' )
 
 
-def exports_rois_by_track( trackmate, rm, path ):
+def color_and_export_rois_by_track( trackmate, rm, path ):
 	"""
+	Colors the ROIs stored in the specified ROIManager rm using a color
+	determined by the track ID they have.
+
 	We retrieve the IJ ROI that matches the TrackMate Spot because in the
 	latter we stored the index of the spot in the quality feature. This
 	is a hack of course. On top of that, it supposes that the index of the
@@ -288,17 +285,33 @@ def exports_rois_by_track( trackmate, rm, path ):
 	likely to break things.
 	"""
 	model = trackmate.getModel()
+	track_colors = {}
+	track_indices = []
 	track_rois = {}
 	for i in model.getTrackModel().trackIDs( True ):
-		track_rois[i] = []
+		track_indices.append( i )
+	shuffle( track_indices )
+
+	for i, track_id in enumerate(track_indices):
+		color = Jet.getPaint( float(i) / max(1, len(track_indices)-1) )
+		track_colors[ track_id ] = color
 
 	spots = model.getSpots()
 	for spot in spots.iterable( True ):
+		q = spot.getFeature( 'QUALITY' ) # Stored the ROI id.
+		roi_id = int( q )
+		roi = rm.getRoi( roi_id )
+
+		# Get track id.
 		track_id = model.getTrackModel().trackIDOf( spot )
-		if track_id is not None and track_id in track_rois:
-			q = spot.getFeature( 'QUALITY' ) # Stored the ROI id.
-			roi_name = rm.getName( int(q) )
-			track_rois[track_id].append(roi_name)
+		if track_id is None or track_id not in track_indices:
+			color = Color.GRAY
+		else:
+			color = track_colors[ track_id ]
+			roi_name = rm.getName( roi_id )
+			track_rois.setdefault(track_id,[]).append(roi_name)
+
+		roi.setFillColor( color )
 
 	with open(path, 'w') as f:
 		f.writelines([', '.join(track_rois[track_id])+'\n' for track_id in track_rois.keys()])
@@ -306,6 +319,20 @@ def exports_rois_by_track( trackmate, rm, path ):
 
 def error(msg):
 	ui.showDialog(msg, DialogPrompt.MessageType.ERROR_MESSAGE);
+
+
+def rename_rois(rm, is_hyperstack):
+	frame = (lambda roi: roi.getTPosition()) if is_hyperstack else (lambda roi: roi.getPosition())
+	rois = rm.getRoisAsArray()
+	k = 1
+	last_frame = -1
+	for i,roi in enumerate(rois):
+		t = frame(roi)
+		if last_frame != t:
+			last_frame = t
+			k = 1
+		rm.rename( i, 't%03d-%05d' % (t,k) )
+		k += 1
 
 
 def export_rois(rm, is_hyperstack, path):
@@ -318,6 +345,16 @@ def export_rois(rm, is_hyperstack, path):
 
 	writer = FileWriter(path)
 	Gson().toJson(polys, writer)
+	writer.close() # important
+
+
+def export_calibration(imp, path):
+	cal = imp.getCalibration()
+	meta = dict(w=cal.pixelWidth,    w_unit=cal.getXUnit(),
+				h=cal.pixelHeight,   h_unit=cal.getYUnit(),
+				t=cal.frameInterval, t_unit=cal.getTimeUnit())
+	writer = FileWriter(path)
+	Gson().toJson(meta, writer)
 	writer.close() # important
 
 
@@ -363,6 +400,8 @@ def main():
 	if n_channels != len(models):
 		return error("input image has %d channels, but %d stardist model(s) enabled" % (n_channels, len(models)))
 
+	export_calibration( imp, save_path(save_dir, imp_name, 'calibration.json') )
+
 	channel_imps = ChannelSplitter.split(imp)
 
 	args = zip(channel_names, channel_imps, models, prob_threshs, nms_threshs)
@@ -383,9 +422,11 @@ def main():
 		params['modelFile'] = model.getAbsolutePath()
 		params['probThresh'] = prob_thresh
 		params['nmsThresh'] = nms_thresh
-		
+
 		# print 'StarDist', channel_name, ':', params, '\n'
 		command.run(StarDist2D, False, params).get()
+		rename_rois( rm, is_hyperstack )
+		rm.runCommand( "Save",          save_path(save_dir, imp_name, 'rois_%s.zip'  % channel_name.lower()) )
 		export_rois( rm, is_hyperstack, save_path(save_dir, imp_name, 'rois_%s.json' % channel_name.lower()) )
 
 	assert channel_name == tracking_channel
@@ -431,7 +472,7 @@ def main():
 	# Create the GUI and let it control display of results.
 	display_results_in_GUI( trackmate, imp )
 
-	exports_rois_by_track( trackmate, rm, save_path(save_dir, imp_name, 'tracks_%s.csv' % tracking_channel.lower()) )
+	color_and_export_rois_by_track( trackmate, rm, save_path(save_dir, imp_name, 'tracks_%s.csv' % tracking_channel.lower()) )
 
 
 main()
