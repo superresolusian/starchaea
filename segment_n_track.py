@@ -6,12 +6,10 @@
 #@ UIService ui
 #@ RoiManager rm
 
+#@ ImagePlus imp
+
 #@ String (label="Track Channel", choices={"Membrane", "DNA"}, style="radioButtonHorizontal") tracking_channel
 #@ File (label="Output Directory", style="directory") save_dir
-
-##@ String (visibility=MESSAGE, value="<html><br></html>", required="false") spacer1
-
-#@ ImagePlus imp
 
 #@ String (visibility=MESSAGE, label="<html><br/><b>Membrane StarDist Model</b></html>", value="<html><br/><hr width='100'></html>", required="false") membrane_msg
 #@ Boolean (label="Enable", value="true") stardist_membrane_enabled
