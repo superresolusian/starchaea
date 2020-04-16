@@ -25,6 +25,11 @@
 #@ Float (label="Probability Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.696284", persist="false") prob_thresh_dna
 #@ Float (label="Overlap Threshold", stepSize="0.05", min="0", max="1", style="slider", value="0.7", persist="false") nms_thresh_dna
 
+#@ String (visibility=MESSAGE, label="<html><br/><b>Tracking parameters</b></html>", value="<html><br/><hr width='100'></html>", required="false") tracking_msg
+#@ Float (label="Frame to frame linking max. distance", stepSize="0.5", min="0", max="20", style="slider", value="10.0", persist="false") frame_link_dist
+#@ Float (label="Gap closing max. distance", stepSize="0.5", min="0", max="20", style="slider", value="15.0", persist="false") gap_close_dist
+#@ Float (label="Segment splitting max. distance", stepSize="0.5", min="0", max="20", style="slider", value="7.0", persist="false") seg_split_dist
+
 
 import sys
 from math import pi
@@ -103,7 +108,7 @@ def spots_from_results_table( results_table, frame_interval ):
 	return spots
 
 
-def create_trackmate( imp, results_table ):
+def create_trackmate( imp, results_table, frame_link_dist, gap_close_dist, seg_split_dist ):
 	"""
 	Creates a TrackMate instance configured to operated on the specified
 	ImagePlus imp with cell analysis stored in the specified ResultsTable
@@ -166,11 +171,11 @@ def create_trackmate( imp, results_table ):
 	# Configure tracker
 	settings.trackerFactory = SparseLAPTrackerFactory()
 	settings.trackerSettings = LAPUtils.getDefaultLAPSettingsMap()
-	settings.trackerSettings[ 'LINKING_MAX_DISTANCE' ] 		= 10.0
-	settings.trackerSettings[ 'GAP_CLOSING_MAX_DISTANCE' ]	= 15.0
+	settings.trackerSettings[ 'LINKING_MAX_DISTANCE' ] 		= frame_link_dist
+	settings.trackerSettings[ 'GAP_CLOSING_MAX_DISTANCE' ]	= gap_close_dist
 	settings.trackerSettings[ 'MAX_FRAME_GAP' ]				= 3
 	settings.trackerSettings[ 'ALLOW_TRACK_SPLITTING' ]		= True
-	settings.trackerSettings[ 'SPLITTING_MAX_DISTANCE' ]	= 7.0
+	settings.trackerSettings[ 'SPLITTING_MAX_DISTANCE' ]	= seg_split_dist
 
 	settings.trackerSettings
 
@@ -371,12 +376,14 @@ def main():
 	# params['roiPosition'] = "Automatic" # doesn't work because single channels are fed to StarDist, but result may be displayed on hyperstack
 	params['roiPosition'] = "Hyperstack" if n_channels > 1 else "Stack"
 
+
 	print "\n===============================\n"
 	for channel_name, channel, model, prob_thresh, nms_thresh in args:
 		params['input'] = channel
 		params['modelFile'] = model.getAbsolutePath()
 		params['probThresh'] = prob_thresh
 		params['nmsThresh'] = nms_thresh
+		
 		# print 'StarDist', channel_name, ':', params, '\n'
 		command.run(StarDist2D, False, params).get()
 		export_rois( rm, is_hyperstack, save_path(save_dir, imp_name, 'rois_%s.json' % channel_name.lower()) )
@@ -405,7 +412,7 @@ def main():
 	# print results_table
 
 	# Create TrackMate instance.
-	trackmate = create_trackmate( imp, results_table )
+	trackmate = create_trackmate( imp, results_table, frame_link_dist, gap_close_dist, seg_split_dist )
 
 	#-----------------------
 	# Process.
