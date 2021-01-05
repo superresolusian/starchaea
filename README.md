@@ -4,7 +4,7 @@
 notebooks for stardist x trackmate x archaea project
 
 ## Data and models
-Find 'em here: https://www.dropbox.com/sh/jbczc4devj1cjby/AAD-LELLm6_v74o9B7CLXJUUa?dl=0
+E-mail me (Siân) if you want/need access to test datasets and trained models.
 
 ## Order to run notebooks/code things in. General notes and musings.
 0. Model training - haven't included this. Don't know if it's worth making a separate notebook in this repo or just point people to Stardist training example? Will gather together some examples of annotated data for both channels either way.
