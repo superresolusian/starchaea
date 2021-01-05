@@ -9,7 +9,7 @@ E-mail me (Siân) if you want/need access to test datasets and trained models.
 ## Order to run notebooks/code things in. General notes and musings.
 0. Model training - haven't included this. Don't know if it's worth making a separate notebook in this repo or just point people to Stardist training example? Will gather together some examples of annotated data for both channels either way.
 
-1. `Collated_process_up_to_trackmate.ipynb` - I've tested the fuck out of this for all the example data, should be pretty stable.
+1. `Collated_process_up_to_trackmate.ipynb` - I've tested <!---the fuck out of---> this for all the example data, should be pretty stable.
 
 2. `Tracking_helper.ijm` in Fiji (needs to have `my_tracking.py` in Fiji plugins folder). Probably not worth trying to call this from a notebook is it? I got a bit over excited when I realised that you can open Fiji from a jupyter notebook (`Probably_a_bad_idea.ipynb`). <font color=red> Maybe should have GUI options for settings inside my_tracking? E.g. gap lengths etc </font>
 
